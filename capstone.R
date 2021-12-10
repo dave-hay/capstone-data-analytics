@@ -39,6 +39,10 @@ write.csv(df_all, file = 'data/all-data.csv', row.names=FALSE)
 df_all <- filter(df_all, ride_length > 0 | start_station_name != "HQ QR")
 df_all <-subset(df_all, select = -c(ride_id, start_station_name, start_station_id, end_station_name, end_station_id, started_at, ended_at, start_lat, start_lng, end_lat, end_lng))
 
+##########
+# ZSCORE
+##########
+
 # calculate zscore and create new data frame
 df_mean <- mean(df_all$ride_length)
 df_sd <- sd(df_all$ride_length)
@@ -51,7 +55,11 @@ df_all <- no_outliers
 df_all <-subset(df_all, select = -c(df_zscore))
 
 ##########
-# Analysis
+# VISULIZATIONS
+##########
+
+##########
+# BAR CHART OF WEEK
 ##########
 
 # first analysis we need to order the days 
@@ -62,17 +70,15 @@ counts <- aggregate(df_all$ride_length ~ df_all$member_casual + df_all$day_of_we
 colnames(counts) <- c('member_casual', 'day_of_week', 'ride_length')
 counts <- mutate(counts, ride_length = ride_length / 60)  # change to minutes
 
-# graph line chart of both types
-ggplot(counts, mapping = aes(x=day_of_week, y=ride_length, group = member_casual, color = member_casual)) + 
-  geom_line() +
-  xlab('Day of the Week') + 
-  ylab('Ride Length')
-
 # graph bar chart of both types
 ggplot(counts, aes(day_of_week, ride_length, fill = member_casual)) +
   geom_col(position = "dodge") + 
   xlab('Day of the Week') + 
   ylab('Ride Length')
+
+##########
+# LINE CHART OF MONTHS
+##########
 
 # create new df that gets the mean ride length by member type and month
 mo_counts <- aggregate(df_all$ride_length ~ df_all$member_casual + df_all$month, FUN = mean)
@@ -90,33 +96,69 @@ ggplot(mo_counts, mapping = aes(x=month, y=ride_length, group = member_casual, c
   xlab('Month') + 
   ylab('Ride Length')
 
-# graph bar chart of both types
-ggplot(mo_counts, aes(month, ride_length, fill = member_casual)) +
-  geom_col(position = "dodge") + 
-  xlab('Month') + 
-  ylab('Ride Length')
+##########
+# PIE CHART OF BIKE TYPES CASUAL
+##########
 
-# create two need dfs that show ride length by type of bike for each rider type
+# create two dfs that show ride length by type of bike for each rider type
 type_df <- select(df_all, member_casual, ride_length, rideable_type)
 type_df <- mutate(type_df, ride_length = ride_length / 60)
-c_df <- filter(type_df, member_casual == 'casual')
-m_df <- filter(type_df, member_casual == 'member')
-c_df <- aggregate(c_df$ride_length ~ c_df$member_casual + c_df$rideable_type, FUN = mean)
-m_df <- aggregate(m_df$ride_length ~ m_df$member_casual + m_df$rideable_type, FUN = mean)
-colnames(c_df) <- c('member_casual', 'rideable_type', 'ride_length')
-colnames(m_df) <- c('member_casual', 'rideable_type', 'ride_length')
 
-# pie chart of casual rider
+# create casual data frame 
+c_df <- filter(type_df, member_casual == 'casual')
+c_df <- aggregate(c_df$ride_length ~ c_df$member_casual + c_df$rideable_type, FUN = mean)
+colnames(c_df) <- c('member_casual', 'rideable_type', 'ride_length')
+
+# prep data for pie chart so it will show percentages
+# https://dk81.github.io/dkmathstats_site/rvisual-piecharts.html
+c_df <- c_df %>% 
+  mutate(
+    percent = (paste0(round((ride_length/ sum(ride_length)) * 100, 1), "%")),
+    levels = (rideable_type[length(rideable_type):1]),
+    cumulative = (cumsum(ride_length)),
+    midpoint = cumulative - ride_length / 2)
+
+# graph pie chart
 ggplot(c_df, aes(x="", y=ride_length, fill=rideable_type)) +
   geom_bar(stat="identity", width=1) +
   coord_polar("y", start=0) +
-  theme_void() 
+  geom_text(aes(x = 1.2, y = midpoint , label = percent), color="black",
+            fontface = "bold") +
+  theme_void() +
+  theme(axis.line = element_blank(), 
+        plot.title = element_text(hjust=0.5))
 
-# pie chart of member rider
+##########
+# PIE CHART OF BIKE TYPES MEMBER
+##########
+
+# create member data frame 
+m_df <- filter(type_df, member_casual == 'member')
+m_df <- aggregate(m_df$ride_length ~ m_df$member_casual + m_df$rideable_type, FUN = mean)
+colnames(m_df) <- c('member_casual', 'rideable_type', 'ride_length')
+
+# prep data for pie chart so it will show percentages
+# https://dk81.github.io/dkmathstats_site/rvisual-piecharts.html
+m_df <- m_df %>% 
+  mutate(
+    percent = (paste0(round((ride_length/ sum(ride_length)) * 100, 1), "%")),
+    levels = (rideable_type[length(rideable_type):1]),
+    cumulative = (cumsum(ride_length)),
+    midpoint = cumulative - ride_length / 2)
+
+# graph pie chart
 ggplot(m_df, aes(x="", y=ride_length, fill=rideable_type)) +
   geom_bar(stat="identity", width=1) +
   coord_polar("y", start=0) +
-  theme_void()
+  geom_text(aes(x = 1.2, y = midpoint , label = percent), color="black",
+            fontface = "bold") +
+  theme_void() +
+  theme(axis.line = element_blank(), 
+        plot.title = element_text(hjust=0.5))
+
+##########
+# SAVE FILES
+##########
 
 # save all dfs used to create graphics as csv files
 write.csv(counts, file = 'data/avg_ride_length.csv', row.names=FALSE)
